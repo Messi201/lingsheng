@@ -88,6 +88,23 @@ export const WaveformEditor: React.FC<WaveformEditorProps> = ({
 
     regionElementsRef.current.box.style.left = `${leftPx}px`;
     regionElementsRef.current.box.style.width = `${widthPx}px`;
+
+    // Update Time Labels
+    const formatTime = (seconds: number) => {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins.toString().padStart(2, '0')}:${secs.toFixed(1).padStart(4, '0')}`;
+    };
+
+    if (regionElementsRef.current.handleStart) {
+      const startLabel = regionElementsRef.current.handleStart.querySelector('.time-label');
+      if (startLabel) startLabel.textContent = formatTime(start);
+    }
+
+    if (regionElementsRef.current.handleEnd) {
+      const endLabel = regionElementsRef.current.handleEnd.querySelector('.time-label');
+      if (endLabel) endLabel.textContent = formatTime(end);
+    }
   }, []);
 
   // Initialize WaveSurfer
@@ -176,16 +193,18 @@ export const WaveformEditor: React.FC<WaveformEditorProps> = ({
         touchAction: 'none', 
     });
 
-    // 3. Start Handle - Inline styles for layout only, visuals in CSS
+    // 3. Start Handle
     const handleStart = document.createElement('div');
     handleStart.className = 'custom-region-handle start';
+    handleStart.innerHTML = `
+      <div class="handle-arrow"></div>
+      <div class="time-label">00:00.0</div>
+      <div class="connector"></div>
+    `;
     Object.assign(handleStart.style, {
         position: 'absolute',
         left: '0',
-        top: '0',
-        bottom: '0',
-        width: '8px', 
-        // Background controlled by CSS class now
+        // top, bottom, width are handled by CSS class for refined styling
         transform: 'translateX(-50%)',
         cursor: 'ew-resize',
         zIndex: '20',
@@ -196,13 +215,15 @@ export const WaveformEditor: React.FC<WaveformEditorProps> = ({
     // 4. End Handle
     const handleEnd = document.createElement('div');
     handleEnd.className = 'custom-region-handle end';
+    handleEnd.innerHTML = `
+      <div class="handle-arrow"></div>
+      <div class="time-label">00:00.0</div>
+      <div class="connector"></div>
+    `;
     Object.assign(handleEnd.style, {
         position: 'absolute',
         left: '100%', 
-        top: '0',
-        bottom: '0',
-        width: '8px', 
-        // Background controlled by CSS class now
+        // top, bottom, width are handled by CSS class for refined styling
         transform: 'translateX(-50%)',
         cursor: 'ew-resize',
         zIndex: '20',
@@ -232,10 +253,14 @@ export const WaveformEditor: React.FC<WaveformEditorProps> = ({
         if (!els.box || !els.handleStart || !els.handleEnd) return;
 
         let targetType: 'start' | 'end' | 'box' | null = null;
-        if (target === els.handleStart || els.handleStart.contains(target)) targetType = 'start';
-        else if (target === els.handleEnd || els.handleEnd.contains(target)) targetType = 'end';
-        else if (target === els.box || els.box.contains(target)) targetType = 'box';
+        if (els.handleStart.contains(target)) targetType = 'start';
+        else if (els.handleEnd.contains(target)) targetType = 'end';
+        else if (els.box.contains(target)) targetType = 'box';
         else return;
+
+        // Visual Feedback
+        if (targetType === 'start') els.handleStart.classList.add('dragging');
+        if (targetType === 'end') els.handleEnd.classList.add('dragging');
 
         e.stopPropagation(); 
         // Only prevent default on touch events to prevent scrolling, allow mouse interactions
@@ -299,6 +324,10 @@ export const WaveformEditor: React.FC<WaveformEditorProps> = ({
     };
 
     const handleUp = () => {
+        // Remove visual feedback
+        if (regionElementsRef.current.handleStart) regionElementsRef.current.handleStart.classList.remove('dragging');
+        if (regionElementsRef.current.handleEnd) regionElementsRef.current.handleEnd.classList.remove('dragging');
+
         dragRef.current.target = null;
         window.removeEventListener('mousemove', handleMove);
         window.removeEventListener('touchmove', handleMove);
@@ -574,91 +603,144 @@ export const WaveformEditor: React.FC<WaveformEditorProps> = ({
           }
         }
         
-        /* --- CUSTOM MANUAL HANDLES CSS --- */
+        /* 核心手柄样式 - 替换原有 .custom-region-handle 相关代码 */
         .custom-region-handle {
           position: absolute;
-          top: 0;
-          bottom: 0;
-          width: 8px; /* Thinner body */
+          top: 10%;
+          bottom: 10%;
+          width: 10px;
           z-index: 20;
           cursor: ew-resize;
           touch-action: none;
           user-select: none;
-          border-radius: 4px;
-          /* Gradient Background */
-          background: linear-gradient(180deg, #8b5cf6 0%, #3b82f6 100%);
-          box-shadow: 0 1px 3px rgba(139, 92, 246, 0.3);
-          transition: background 0.2s, box-shadow 0.2s;
+          border-radius: 6px;
+          /* 渐变主色调 - 与波形紫色呼应 */
+          background: linear-gradient(90deg, #9333ea 0%, #6366f1 100%);
+          /* 立体光影效果 */
+          box-shadow: 
+            0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+            0 2px 4px rgba(79, 70, 229, 0.3);
+          transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        /* Hover Effect */
-        .custom-region-handle:hover {
-          background: linear-gradient(180deg, #7c3aed 0%, #2563eb 100%);
-          box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);
-        }
-
-        /* The Badge (Icon Container) */
+        /* 手柄头部装饰 - 增强立体感 */
         .custom-region-handle::before {
           content: '';
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: -4px;
+          height: 4px;
+          border-radius: 2px 2px 0 0;
+          background: linear-gradient(90deg, #a855f7 0%, #7c3aed 100%);
+          box-shadow: 0 -1px 2px rgba(139, 92, 246, 0.2) inset;
+        }
+
+        /* 手柄底部装饰 */
+        .custom-region-handle::after {
+          content: '';
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: -4px;
+          height: 4px;
+          border-radius: 0 0 2px 2px;
+          background: linear-gradient(90deg, #6d28d9 0%, #5b21b6 100%);
+          box-shadow: 0 1px 2px rgba(79, 70, 229, 0.2) inset;
+        }
+
+        /* 箭头图标 - 居中悬浮效果 */
+        .custom-region-handle .handle-arrow {
           position: absolute;
           left: 50%;
           top: 50%;
           transform: translate(-50%, -50%);
-          width: 16px; 
-          height: 24px;
-          background-color: transparent; 
-          border-radius: 3px;
+          width: 14px;
+          height: 14px;
           z-index: 52;
-          
-          /* Icon */
+          transition: transform 0.2s ease;
+        }
+
+        /* 开始手柄箭头 */
+        .custom-region-handle.start .handle-arrow {
+          background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white' opacity='0.9'%3E%3Cpath d='M11 7L6 12l5 5V7z'/%3E%3C/svg%3E");
           background-repeat: no-repeat;
-          background-position: center;
-          background-size: 10px 10px;
-          
-          animation: breathe 3s infinite ease-in-out;
-          transition: all 0.2s ease;
+          background-size: contain;
         }
 
-        .custom-region-handle:hover::before {
-           box-shadow: 0 0 15px rgba(139, 92, 246, 0.5);
+        /* 结束手柄箭头 */
+        .custom-region-handle.end .handle-arrow {
+          background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white' opacity='0.9'%3E%3Cpath d='M13 7l5 5-5 5V7z'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-size: contain;
         }
 
-        /* Arrow Icons */
-        .custom-region-handle.start::before {
-          background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 18l-6-6 6-6'/%3E%3C/svg%3E");
-        }
-        .custom-region-handle.end::before {
-          background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18l6-6-6-6'/%3E%3C/svg%3E");
+        /* 悬停状态 - 增强反馈 */
+        .custom-region-handle:hover {
+          width: 12px;
+          background: linear-gradient(90deg, #a855f7 0%, #7c3aed 100%);
+          box-shadow: 
+            0 0 0 1px rgba(255, 255, 255, 0.15) inset,
+            0 3px 8px rgba(79, 70, 229, 0.4);
         }
 
-        /* Text Labels */
-        .custom-region-handle::after {
+        .custom-region-handle:hover .handle-arrow {
+          transform: translate(-50%, -50%) scale(1.15);
+          opacity: 1;
+        }
+
+        /* 拖拽状态 - 动态反馈 */
+        .custom-region-handle.dragging {
+          background: linear-gradient(90deg, #c084fc 0%, #a78bfa 100%);
+          box-shadow: 
+            0 0 0 1px rgba(255, 255, 255, 0.2) inset,
+            0 4px 12px rgba(139, 92, 246, 0.5);
+          transform: scale(1.05);
+        }
+
+        /* 时间标签 - 悬浮提示 */
+        .custom-region-handle .time-label {
           position: absolute;
-          top: -22px;
+          top: -30px;
           left: 50%;
           transform: translateX(-50%);
-          
-          /* Semi-transparent background */
-          background-color: rgba(139, 92, 246, 0.8);
-          color: white;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          font-size: 9px;
-          padding: 1px 5px;
-          border-radius: 3px;
-          font-weight: 500;
+          background: rgba(30, 29, 47, 0.9);
+          border: 1px solid rgba(139, 92, 246, 0.3);
+          color: #e9d5ff;
+          font-size: 10px;
+          padding: 2px 6px;
+          border-radius: 4px;
           white-space: nowrap;
           pointer-events: none;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-          opacity: 0.85;
-          transition: opacity 0.2s ease;
+          opacity: 0;
+          transition: opacity 0.2s ease, transform 0.2s ease;
+          transform: translateX(-50%) translateY(5px);
+          z-index: 30;
         }
 
-        .custom-region-handle.start::after { content: '开始'; }
-        .custom-region-handle.end::after { content: '结束'; }
-
-        .custom-region-handle:hover::after {
+        .custom-region-handle:hover .time-label,
+        .custom-region-handle.dragging .time-label {
           opacity: 1;
-          background-color: rgba(124, 58, 237, 0.9);
+          transform: translateX(-50%) translateY(0);
+        }
+
+        /* 连接线装饰 */
+        .custom-region-handle .connector {
+          position: absolute;
+          top: 50%;
+          width: 4px;
+          height: 1px;
+          background: rgba(168, 85, 247, 0.5);
+        }
+
+        .custom-region-handle.start .connector {
+          right: 100%;
+          transform: translateY(-50%);
+        }
+
+        .custom-region-handle.end .connector {
+          left: 100%;
+          transform: translateY(-50%);
         }
       `}</style>
 
